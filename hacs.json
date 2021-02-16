@@ -1,0 +1,8 @@
+{
+    "name": "Xiaomi Whale Smart Toilet Cover (xjx.toilet.pro)",
+    "domains": ["toiletlid"],
+    "homeassistant": "2021.01.5",
+    "iot_class": "local_poll",
+    "zip_release": true,
+    "filename": "release.zip"
+}

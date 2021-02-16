@@ -1,0 +1,40 @@
+send_command:
+  description: Send a raw command to the toiletlid.
+  fields:
+    entity_id:
+      description: Name of the toiletlid entity.
+      example: "toiletlid.my_xjx_toilet_pro"
+    command:
+      description: Command to execute.
+      example: "func_off"
+    params:
+      description: Raw parameters for the command.
+      example: ['night_led']
+
+self_clean_on:
+  description: Clean the nozzle.
+  fields:
+    entity_id:
+      description: Name of the toiletlid entity.
+      example: "toiletlid.my_xjx_toilet_pro"
+
+self_clean_off:
+  description: Stop cleaning the nozzle.
+  fields:
+    entity_id:
+      description: Name of the toiletlid entity.
+      example: "toiletlid.my_xjx_toilet_pro"
+
+light_on:
+  description: Turn on the night light.
+  fields:
+    entity_id:
+      description: Name of the toiletlid entity.
+      example: "toiletlid.my_xjx_toilet_pro"
+
+light_off:
+  description: Turn off the night light.
+  fields:
+    entity_id:
+      description: Name of the toiletlid entity.
+      example: "toiletlid.my_xjx_toilet_pro"

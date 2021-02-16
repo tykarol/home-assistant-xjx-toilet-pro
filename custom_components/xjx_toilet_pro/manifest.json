@@ -1,0 +1,11 @@
+{
+  "domain": "xjx_toilet_pro",
+  "name": "Xiaomi Mijia Whale Smart Toilet Cover",
+  "documentation": "https://github.com/tykarol/home-assistant-xjx-toilet-pro",
+  "requirements": [
+    "python-miio==0.5.4"
+  ],
+  "dependencies": [],
+  "codeowners": ["@tykarol"],
+  "config_flow": false
+}
