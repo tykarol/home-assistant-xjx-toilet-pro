@@ -1,6 +1,7 @@
 """Support for Xiaomi Whale Smart Toilet Cover."""
 import enum
 import asyncio
+from functools import partial
 import logging
 
 from typing import Any, Dict
@@ -32,16 +33,20 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 SERVICE_SEND_COMMAND = "send_command"
 SERVICE_SELF_CLEAN_ON = "self_clean_on"
 SERVICE_SELF_CLEAN_OFF = "self_clean_off"
-SERVICE_LIGHT_OFF = "light_on"
-SERVICE_LIGHT_ON = "light_off"
+SERVICE_LED_OFF = "led_on"
+SERVICE_LED_ON = "led_off"
 ATTR_COMMAND = "command"
-ATTR_COMMAN_PARAMS = "params"
+ATTR_PARAMS = "params"
 
 ALL_PROPS = [
     "is_on",
+    "seating",
+    "air_filter",
+    "led",
     "self_clean",
-    "light"
 ]
+
+STATE_OCCUPIED = "occupied"
 
 SUCCESS = ["ok"]
 
@@ -49,7 +54,7 @@ TOILETLID_SERVICE_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTITY_ID): cv.entity_i
 SERVICE_SCHEMA_SEND_COMMAND = TOILETLID_SERVICE_SCHEMA.extend(
     {
         vol.Required(ATTR_COMMAND): cv.string,
-        vol.Optional(ATTR_COMMAN_PARAMS): cv.string
+        vol.Optional(ATTR_PARAMS): vol.Any(dict, cv.ensure_list),
     }
 )
 SERVICE_TO_METHOD = {
@@ -59,8 +64,8 @@ SERVICE_TO_METHOD = {
     },
     SERVICE_SELF_CLEAN_ON: {"method": "async_self_clean_on"},
     SERVICE_SELF_CLEAN_OFF: {"method": "async_self_clean_off"},
-    SERVICE_LIGHT_OFF: {"method": "async_light_on"},
-    SERVICE_LIGHT_ON: {"method": "async_light_off"},
+    SERVICE_LED_OFF: {"method": "async_led_on"},
+    SERVICE_LED_ON: {"method": "async_led_off"},
 }
 
 
@@ -73,6 +78,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     name = config.get(CONF_NAME)
     token = config.get(CONF_TOKEN)
 
+    # Create handler
     _LOGGER.info("Initializing with host %s (token %s...)", host, token[:5])
 
     try:
@@ -95,7 +101,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         update_tasks = []
 
         for device in filter(
-                lambda x: x.entity_id in entity_ids, hass.data[DATA_KEY].values()
+            lambda x: x.entity_id in entity_ids, hass.data[DATA_KEY].values()
         ):
             if not hasattr(device, method["method"]):
                 continue
@@ -115,8 +121,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 
 class XiaomiToiletlid(Entity):
+    """Representation of the device."""
+
     def __init__(self, name, device):
-        """Initialize the generic Xiaomi device."""
+        """Initialize the device handler."""
         self._name = name
         self._device: Toiletlid = device
 
@@ -130,8 +138,13 @@ class XiaomiToiletlid(Entity):
 
     @property
     def name(self) -> str:
-        """Return the name of the device if any."""
+        """Return the name of the device."""
         return self._name
+
+    @property
+    def state(self) -> str:
+        """Return the state."""
+        return STATE_UNAVAILABLE if not self.available else STATE_OCCUPIED if self.is_on else STATE_IDLE
 
     @property
     def available(self):
@@ -142,11 +155,6 @@ class XiaomiToiletlid(Entity):
     def device_state_attributes(self):
         """Return the state attributes of the device."""
         return self._state_attrs
-
-    @property
-    def state(self) -> str:
-        """Return the state."""
-        return STATE_UNAVAILABLE if self.is_on else STATE_IDLE
 
     @property
     def icon(self) -> str:
@@ -180,6 +188,14 @@ class XiaomiToiletlid(Entity):
             self._available = False
             _LOGGER.error("Got exception while fetching the state: %s", ex)
 
+    async def _try_command(self, mask_error, func, *args, **kwargs):
+        """Call a device command handling error messages."""
+        try:
+            return await self.hass.async_add_executor_job(partial(func, *args, **kwargs)) == SUCCESS
+        except DeviceException as exc:
+            _LOGGER.error(mask_error, exc)
+            return False
+
     async def async_send_command(self, command, params=None):
         # Home Assistant templating always returns a string, even if array is outputted, fix this so we can use templating in scripts.
         if isinstance(params, list) and len(params) == 1 and isinstance(params[0], str):
@@ -189,60 +205,28 @@ class XiaomiToiletlid(Entity):
                 params[0] = int(params[0])
 
         """Send raw command."""
-        try:
-            return (
-                await self.hass.async_add_executor_job(
-                    lambda: self._device.send_command(command, params)
-                )
-            )
-        except DeviceException as exc:
-            _LOGGER.error("Call send_command failure: %s", exc)
-            # self._available = False
-            return False
+        await self._try_command(
+            "Unable to send raw command to the device: %s",
+            self._device.raw_command,
+            command,
+            params,
+        )
 
     async def async_self_clean_on(self) -> bool:
-        """Start nozzle cleaning."""
-        try:
-            return (
-                await self.hass.async_add_executor_job(self._device.self_clean_on) == SUCCESS
-            )
-        except DeviceException as exc:
-            _LOGGER.error("Call self_clean_on failure: %s", exc)
-            self._available = False
-            return False
+        """Turn the self clean on."""
+        await self._try_command("Unable to set self clean on: %s", self._device.set_self_clean, True)
 
     async def async_self_clean_off(self) -> bool:
-        """Stop nozzle cleaning."""
-        try:
-            return (
-                await self.hass.async_add_executor_job(self._device.self_clean_off) == SUCCESS
-            )
-        except DeviceException as exc:
-            _LOGGER.error("Call self_clean_off failure: %s", exc)
-            self._available = False
-            return False
+        """Turn the self clean off."""
+        await self._try_command("Unable to set self clean off: %s", self._device.set_self_clean, False)
 
-    async def async_light_on(self) -> bool:
-        """Turn on the night light."""
-        try:
-            return (
-                await self.hass.async_add_executor_job(self._device.light_on) == SUCCESS
-            )
-        except DeviceException as exc:
-            _LOGGER.error("Call light_on failure: %s", exc)
-            self._available = False
-            return False
+    async def async_led_on(self) -> bool:
+        """Turn the led on."""
+        await self._try_command("Unable to set led on: %s", self._device.set_led, True)
 
-    async def async_light_off(self) -> bool:
-        """Turn on the night light."""
-        try:
-            return (
-                await self.hass.async_add_executor_job(self._device.light_off) == SUCCESS
-            )
-        except DeviceException as exc:
-            _LOGGER.error("Call light_off failure: %s", exc)
-            self._available = False
-            return False
+    async def async_led_off(self) -> bool:
+        """Turn the led off."""
+        await self._try_command("Unable to set led off: %s", self._device.set_led, False)
 
 
 class ToiletlidStatus:
@@ -251,17 +235,43 @@ class ToiletlidStatus:
 
     @property
     def is_on(self) -> bool:
-        return int(self.data["seating"]) == 1
+        return self.seating
+
+    # @property
+    # def massage(self) -> bool:
+    #     return bool(int(self.data["massage"]))
+
+    # @property
+    # def moving(self) -> bool:
+    #     return bool(int(self.data["moving"]))
+
+    @property
+    def seating(self) -> bool:
+        return bool(int(self.data["seating"]))
+
+    @property
+    def air_filter(self) -> bool:
+        return bool(int(self.data["status_airfilter"]))
+
+    @property
+    def led(self) -> bool:
+        return bool(int(self.data["status_led"]))
 
     @property
     def self_clean(self) -> bool:
-        """Nozzle cleaning in progress."""
         return bool(int(self.data["status_selfclean"]))
 
-    @property
-    def light(self) -> bool:
-        """Night light is on."""
-        return bool(int(self.data["status_led"]))
+    # @property
+    # def tun_wash(self) -> bool:
+    #     return bool(int(self.data["status_tunwash"]))
+
+    # @property
+    # def warm_dry(self) -> bool:
+    #     return bool(int(self.data["status_warmdry"]))
+
+    # @property
+    # def women_ash(self) -> bool:
+    #     return bool(int(self.data["status_womenwash"]))
 
 
 class Toiletlid(Device):
@@ -279,30 +289,43 @@ class Toiletlid(Device):
     def status(self) -> ToiletlidStatus:
         """Retrieve properties."""
         properties = [
+            # "fan_temp", # timeout
+            # "left_day", # => [1109] for 109 days left in app
+            # "massage", # timeout
+            # "moving", # timeout
             "seating",
+            "status_airfilter",
             "status_led",
-            "status_selfclean"
+            "status_selfclean",
+            # "status_tunwash", # => [0, 2, 3, 2, 0, 0]
+            # "status_warmdry", # => [0, 2]
+            # "status_womenwash", # => [0, 2, 2, 2, 0, 0]
+            # "water_pos_t", # timeout
+            # "water_pos_w", # timeout
+            # "water_strong_t", # timeout
+            # "water_strong_w", # timeout
+            # "water_temp_t", # timeout
+            # "water_temp_w", # timeout
+            # "fw_ver", # => [1021]
         ]
         values = self.get_properties(properties, max_properties=1)
 
         return ToiletlidStatus(dict(zip(properties, values)))
 
-    def send_command(self, command: str, props: str):
-        """Send raw command."""
-        return self.send(command, props)
+    # def raw_command(self, command: str, props: Dict[str, Any] = []):
+    #     """Send raw command."""
+    #     return self.send(command, props)
 
-    def self_clean_on(self):
-        """Start nozzle cleaning."""
-        return self.send("self_clean_on")
+    def set_self_clean(self, state: bool):
+        """Turn the self clean on/off."""
+        if state:
+            return self.send("self_clean_on")
+        else:
+            return self.send("func_off", ["self_clean"])
 
-    def self_clean_off(self):
-        """Stop nozzle cleaning."""
-        return self.send("func_off", ["self_clean"])
-
-    def light_on(self):
-        """Turn on the night light."""
-        return self.send("night_led_on")
-
-    def light_off(self):
-        """Turn off the night light."""
-        return self.send("func_off", ["night_led"])
+    def set_led(self, state: bool):
+        """Turn the led on/off."""
+        if state:
+            return self.send("night_led_on")
+        else:
+            return self.send("func_off", ["night_led"])

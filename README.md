@@ -1,4 +1,4 @@
-# Home assistant support for Xiaomi Whale Smart Toilet Cover
+# Home Assistant support for Xiaomi Whale Smart Toilet Cover
 
 This is for Xiaomi Mijia Whale Smart Toilet Cover (xjx.toilet.pro).
 

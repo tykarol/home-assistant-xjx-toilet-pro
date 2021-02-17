@@ -12,28 +12,28 @@ send_command:
       example: ['night_led']
 
 self_clean_on:
-  description: Clean the nozzle.
+  description: Turn self clean on.
   fields:
     entity_id:
       description: Name of the toiletlid entity.
       example: "toiletlid.my_xjx_toilet_pro"
 
 self_clean_off:
-  description: Stop cleaning the nozzle.
+  description: Turn self clean off.
   fields:
     entity_id:
       description: Name of the toiletlid entity.
       example: "toiletlid.my_xjx_toilet_pro"
 
-light_on:
-  description: Turn on the night light.
+led_on:
+  description: Turn led on.
   fields:
     entity_id:
       description: Name of the toiletlid entity.
       example: "toiletlid.my_xjx_toilet_pro"
 
-light_off:
-  description: Turn off the night light.
+led_off:
+  description: Turn led off.
   fields:
     entity_id:
       description: Name of the toiletlid entity.
