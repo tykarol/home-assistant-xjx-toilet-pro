@@ -8,5 +8,6 @@
   ],
   "dependencies": [],
   "codeowners": ["@tykarol"],
-  "config_flow": false
+  "config_flow": false,
+  "iot_class": "local_polling"
 }
