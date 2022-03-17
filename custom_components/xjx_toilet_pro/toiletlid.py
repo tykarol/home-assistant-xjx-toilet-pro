@@ -301,11 +301,9 @@ class Toiletlid(Device):
         lazy_discover: bool = True,
         model: str = MODEL_TOILETLID_XJX_TOILET_PRO,
     ) -> None:
-        super().__init__(ip, token, start_id, debug, lazy_discover)
+        super().__init__(ip, token, start_id, debug, lazy_discover, model=model)
 
-        if model in AVAILABLE_PROPERTIES:
-            self._model = model
-        else:
+        if model not in AVAILABLE_PROPERTIES:
             self._model = MODEL_TOILETLID_XJX_TOILET_PRO
 
     # https://github.com/rytilahti/python-miio/issues/815#issuecomment-761765046
