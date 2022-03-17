@@ -304,14 +304,14 @@ class Toiletlid(Device):
         super().__init__(ip, token, start_id, debug, lazy_discover)
 
         if model in AVAILABLE_PROPERTIES:
-            self.model = model
+            self._model = model
         else:
-            self.model = MODEL_TOILETLID_XJX_TOILET_PRO
+            self._model = MODEL_TOILETLID_XJX_TOILET_PRO
 
     # https://github.com/rytilahti/python-miio/issues/815#issuecomment-761765046
     def status(self) -> ToiletlidStatus:
         """Retrieve properties."""
-        properties = AVAILABLE_PROPERTIES[self.model]
+        properties = AVAILABLE_PROPERTIES[self._model]
         values = self.get_properties(properties, max_properties=1)
 
         return ToiletlidStatus(dict(zip(properties, values)))
